@@ -1585,9 +1585,10 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: false,
+      webviewTag: true,
     },
     frame: false,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#ffffff',
   })
 
   // 开发模式用 Vite 开发服务器；打包后加载本地 dist 构建文件
@@ -1606,6 +1607,38 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null
+  })
+
+  // 拦截响应头，去除 X-Frame-Options 和 CSP frame-ancestors，允许 iframe 嵌入任意页面
+  const filter = { urls: ['*://*/*'] }
+  mainWindow.webContents.session.webRequest.onHeadersReceived(filter, (details, callback) => {
+    const headers: Record<string, string> = { ...(details.responseHeaders || {}) }
+    delete headers['x-frame-options']
+    delete headers['X-Frame-Options']
+    if (headers['content-security-policy']) {
+      headers['content-security-policy'] = headers['content-security-policy'].replace(/frame-ancestors[^;]*;?/gi, '')
+    }
+    callback({ responseHeaders: headers })
+  })
+
+  // 只对 /api/ 请求注入 Bearer token，SPA 页面请求不注入（nginx 收到 token 会转发到 Go 后端导致 404）
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
+    try {
+      const url = new URL(details.url)
+      if (!url.pathname.startsWith('/api/')) {
+        callback({ requestHeaders: details.requestHeaders })
+        return
+      }
+      const cfg = readYunyaClawConfigRaw()
+      const remoteUrl = typeof cfg.remoteUrl === 'string' ? cfg.remoteUrl.replace(/\/+$/, '') : ''
+      if (remoteUrl && details.url.startsWith(remoteUrl)) {
+        const authData = readAuthData()
+        if (authData.token) {
+          details.requestHeaders['Authorization'] = `Bearer ${authData.token}`
+        }
+      }
+    } catch { /* 忽略 */ }
+    callback({ requestHeaders: details.requestHeaders })
   })
 
   const showWindow = () => {
@@ -2809,6 +2842,198 @@ interface ProviderData {
   api: string
   website?: string
 }
+
+// ---- 远程地址 & 认证 ----
+
+ipcMain.handle('remoteUrl:get', async () => {
+  try {
+    const cfg = YunyaClawConfigService.get('remoteUrl')
+    return { success: true, url: typeof cfg === 'string' ? cfg : '' }
+  } catch (err) {
+    return { success: false, url: '' }
+  }
+})
+
+ipcMain.handle('remoteUrl:set', async (_event, url: string) => {
+  try {
+    await YunyaClawConfigService.update({ remoteUrl: url })
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+const AUTH_TOKEN_FILE = path.join(getOpenclawConfigDir(), '.auth.json')
+
+function readAuthData(): Record<string, unknown> {
+  try {
+    if (fs.existsSync(AUTH_TOKEN_FILE)) {
+      return JSON.parse(fs.readFileSync(AUTH_TOKEN_FILE, 'utf-8'))
+    }
+  } catch { /* 忽略 */ }
+  return {}
+}
+
+function writeAuthData(data: Record<string, unknown>): void {
+  const dir = path.dirname(AUTH_TOKEN_FILE)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(AUTH_TOKEN_FILE, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 })
+}
+
+ipcMain.handle('auth:getToken', async () => {
+  try {
+    const data = readAuthData()
+    return { success: true, token: data.token as string | undefined, email: data.email as string | undefined }
+  } catch {
+    return { success: false, token: undefined, email: undefined }
+  }
+})
+
+function doHttpRequest(url: string, method: string, body?: Record<string, unknown>, headers?: Record<string, string>): Promise<{ success: boolean; data: Record<string, unknown>; error?: string }> {
+  return new Promise((resolve) => {
+    const urlObj = new URL(url)
+    const isHttps = urlObj.protocol === 'https:'
+    const mod = isHttps ? https : http
+    const postData = body ? JSON.stringify(body) : undefined
+
+    const reqHeaders: Record<string, string> = { 'Content-Type': 'application/json', ...headers }
+    if (postData) reqHeaders['Content-Length'] = String(Buffer.byteLength(postData))
+
+    const options = {
+      hostname: urlObj.hostname,
+      port: urlObj.port || (isHttps ? 443 : 80),
+      path: urlObj.pathname + urlObj.search,
+      method,
+      headers: reqHeaders,
+      rejectUnauthorized: false,
+    }
+
+    const req = mod.request(options, (res) => {
+      let bodyStr = ''
+      res.on('data', (chunk: Buffer) => { bodyStr += chunk.toString('utf-8') })
+      res.on('end', () => {
+        try {
+          const data = JSON.parse(bodyStr)
+          resolve({ success: res.statusCode != null && res.statusCode >= 200 && res.statusCode < 300, data, error: data.error || data.message })
+        } catch {
+          resolve({ success: false, data: {}, error: bodyStr || `HTTP ${res.statusCode}` })
+        }
+      })
+    })
+
+    req.on('error', (err) => resolve({ success: false, data: {}, error: String(err) }))
+    req.setTimeout(15000, () => { req.destroy(); resolve({ success: false, data: {}, error: '请求超时' }) })
+
+    if (postData) req.write(postData)
+    req.end()
+  })
+}
+
+ipcMain.handle('auth:register', async (_event, remoteUrl: string, username: string, email: string, password: string) => {
+  try {
+    const baseUrl = remoteUrl.replace(/\/+$/, '')
+    const res = await doHttpRequest(`${baseUrl}/api/v1/auth/register`, 'POST', { username, email, password })
+    return { success: res.success, message: res.success ? '注册成功' : (res.data?.message as string || res.error || '注册失败'), error: res.error }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('auth:login', async (_event, remoteUrl: string, email: string, password: string) => {
+  try {
+    const baseUrl = remoteUrl.replace(/\/+$/, '')
+    const res = await doHttpRequest(`${baseUrl}/api/v1/auth/login`, 'POST', { email, password })
+    if (res.success && res.data?.token) {
+      writeAuthData({ token: res.data.token, refresh_token: res.data.refresh_token, email })
+      return { success: true, token: res.data.token as string, refresh_token: res.data.refresh_token as string }
+    }
+    return { success: false, message: (res.data?.message as string) || res.error || '登录失败', error: res.error }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('auth:validate', async (_event, remoteUrl: string, token: string) => {
+  try {
+    const baseUrl = remoteUrl.replace(/\/+$/, '')
+    const res = await doHttpRequest(`${baseUrl}/api/v1/auth/validate`, 'GET', undefined, { Authorization: `Bearer ${token}` })
+    return { success: res.success, error: res.error }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('auth:logout', async () => {
+  try {
+    if (fs.existsSync(AUTH_TOKEN_FILE)) {
+      fs.unlinkSync(AUTH_TOKEN_FILE)
+    }
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('app:quit', async () => {
+  app.quit()
+  return { success: true }
+})
+
+ipcMain.handle('kb:getPreloadPath', async () => {
+  // dev: 项目根目录 /electron/kb-preload.js
+  // 生产: resources 目录
+  const p = app.isPackaged
+    ? path.join(process.resourcesPath, 'kb-preload.js')
+    : path.join(app.getAppPath(), 'electron', 'kb-preload.js')
+  return p
+})
+
+ipcMain.handle('kb:getToken', async () => {
+  try {
+    const data = readAuthData()
+    const token = data.token as string | undefined
+    const refresh_token = data.refresh_token as string | undefined
+
+    if (!token) return { token: undefined }
+
+    // 从 remoteUrl 获取 WeKnora 服务器地址
+    const remoteUrl = YunyaClawConfigService.get('remoteUrl') as string | undefined
+    const baseUrl = typeof remoteUrl === 'string' ? remoteUrl.replace(/\/+$/, '') : ''
+
+    let user: Record<string, unknown> | undefined
+
+    // 调用 /auth/me 获取当前用户信息，用于注入 localStorage
+    if (baseUrl && token) {
+      try {
+        const userRes = await doHttpRequest(
+          `${baseUrl}/api/v1/auth/me`,
+          'GET',
+          undefined,
+          { Authorization: `Bearer ${token}` }
+        )
+        if (userRes.success && userRes.data?.user) {
+          user = {
+            id: (userRes.data.user as Record<string, unknown>).id || '',
+            username: (userRes.data.user as Record<string, unknown>).username || '',
+            email: (userRes.data.user as Record<string, unknown>).email || '',
+            avatar: (userRes.data.user as Record<string, unknown>).avatar || null,
+            tenant_id: String((userRes.data.user as Record<string, unknown>).tenant_id || ''),
+            can_access_all_tenants: Boolean((userRes.data.user as Record<string, unknown>).can_access_all_tenants),
+            preferences: (userRes.data.user as Record<string, unknown>).preferences || null,
+            created_at: String((userRes.data.user as Record<string, unknown>).created_at || new Date().toISOString()),
+            updated_at: String((userRes.data.user as Record<string, unknown>).updated_at || new Date().toISOString()),
+          }
+        }
+      } catch {
+        // 忽略用户信息获取失败，不阻塞 token 返回
+      }
+    }
+
+    return { token, refresh_token, user }
+  } catch {
+    return { token: undefined }
+  }
+})
 
 // ---- App Lifecycle ----
 

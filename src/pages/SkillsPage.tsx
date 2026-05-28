@@ -238,7 +238,7 @@ export default function SkillsPage() {
                   'px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer whitespace-nowrap',
                   filterSource === src
                     ? 'bg-primary/15 text-primary'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-black/5'
                 )}
               >
                 {src === 'all' ? '全部' : SOURCE_META[src].label}

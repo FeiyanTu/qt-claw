@@ -162,7 +162,7 @@ export default function QuickPastePage() {
 
   return (
     <div
-      className="flex flex-col h-screen bg-[#1a1a1a] text-foreground select-none"
+      className="flex flex-col h-screen bg-[#ffffff] text-foreground select-none"
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       onKeyDown={handleKeyDown}
     >
@@ -204,7 +204,7 @@ export default function QuickPastePage() {
                 className={`px-3 py-2 rounded-lg cursor-pointer transition-colors mb-0.5 ${
                   idx === selectedIndex
                     ? 'bg-primary/15 text-foreground'
-                    : 'hover:bg-white/5 text-foreground/80'
+                    : 'hover:bg-black/5 text-foreground/80'
                 }`}
                 onClick={() => handlePaste(record.text)}
                 onMouseEnter={() => setSelectedIndex(idx)}

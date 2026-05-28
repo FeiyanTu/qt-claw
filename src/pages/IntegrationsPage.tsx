@@ -56,7 +56,7 @@ export default function IntegrationsPage() {
                 'w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors',
                 activeTab === key
                   ? 'bg-primary/15 text-primary font-medium'
-                  : 'text-muted-foreground hover:bg-white/5 hover:text-foreground'
+                  : 'text-muted-foreground hover:bg-black/5 hover:text-foreground'
               )}
             >
               <Icon className="w-4 h-4 shrink-0" />

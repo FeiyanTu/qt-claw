@@ -382,7 +382,7 @@ function ImagePreview({ url }: { url: string }) {
           onError={() => setError('图片加载失败')}
         />
         {!expanded && (
-          <div className="absolute bottom-0 left-0 right-0 h-10 bg-linear-to-t from-[#0d0d0d] to-transparent rounded-b-md flex items-end justify-center pb-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute bottom-0 left-0 right-0 h-10 bg-linear-to-t from-[#f3f4f6] to-transparent rounded-b-md flex items-end justify-center pb-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <span className="text-[10px] text-muted-foreground/60 bg-black/40 px-2 py-0.5 rounded">展开</span>
           </div>
         )}
@@ -484,7 +484,7 @@ function ToolCallCard({ block }: { block: ToolCallBlock }) {
         </span>
       </button>
       {open && (
-        <div className="border-t border-border/40 bg-[#0d0d0d] px-3 py-2">
+        <div className="border-t border-border/40 bg-[#f3f4f6] px-3 py-2">
           <pre className="text-muted-foreground/80 whitespace-pre-wrap break-all leading-relaxed">
             {JSON.stringify(block.args, null, 2)}
           </pre>
@@ -524,7 +524,7 @@ function ToolResultCard({ block, toolName }: { block: ToolResultBlock; toolName?
   const hasMoreText = !block.title && block.content.length > 80
 
   return (
-    <div className="rounded-lg border border-border/40 bg-[#0d0d0d] overflow-hidden text-xs my-1.5">
+    <div className="rounded-lg border border-border/40 bg-[#f3f4f6] overflow-hidden text-xs my-1.5">
       {/* 标题行：与 tool_call 一致，工具名 + 配置字段 */}
       <button
         onClick={() => setOpen(v => !v)}
@@ -608,8 +608,8 @@ function MessageContentInner({ content, streaming, isLast }: MessageContentProps
           <div key={i} className="space-y-2 min-w-0 overflow-hidden">
             <div
               className={cn(
-                'prose prose-sm prose-invert max-w-none text-sm leading-relaxed wrap-break-word',
-                'prose-p:my-2 prose-pre:bg-[#1a1a1a] prose-pre:border prose-pre:border-border',
+                'prose prose-sm  max-w-none text-sm leading-relaxed wrap-break-word',
+                'prose-p:my-2 prose-pre:bg-[#ffffff] prose-pre:border prose-pre:border-border',
                 'prose-pre:rounded-lg prose-pre:break-all prose-code:text-orange-300 prose-code:before:content-none',
                 'prose-code:after:content-none prose-headings:text-foreground prose-a:text-primary prose-a:break-all',
                 'prose-strong:text-foreground prose-li:my-0.5 [&_p]:wrap-break-word'

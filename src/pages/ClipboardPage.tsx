@@ -388,7 +388,7 @@ function RecordItem({
   return (
     <div
       className={`group relative px-3 py-2.5 rounded-lg cursor-pointer transition-colors mb-0.5 ${
-        selected ? 'bg-primary/15 text-foreground' : 'hover:bg-white/5 text-foreground/80'
+        selected ? 'bg-primary/15 text-foreground' : 'hover:bg-black/5 text-foreground/80'
       }`}
       onClick={onSelect}
       onMouseEnter={() => setShowActions(true)}
@@ -408,14 +408,14 @@ function RecordItem({
           <div className="flex items-center gap-0.5 shrink-0">
             <button
               onClick={e => { e.stopPropagation(); onCopy() }}
-              className="p-1 rounded hover:bg-white/10 transition-colors cursor-pointer"
+              className="p-1 rounded hover:bg-black/5 transition-colors cursor-pointer"
               title="复制"
             >
               <Copy className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
             <button
               onClick={e => { e.stopPropagation(); onTogglePin() }}
-              className="p-1 rounded hover:bg-white/10 transition-colors cursor-pointer"
+              className="p-1 rounded hover:bg-black/5 transition-colors cursor-pointer"
               title={record.pinned ? '取消置顶' : '置顶'}
             >
               {record.pinned ? (

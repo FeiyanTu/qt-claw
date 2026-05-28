@@ -155,5 +155,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('app:lifecycle', wrapped)
     },
   },
+  auth: {
+    register: (remoteUrl: string, username: string, email: string, password: string) =>
+      ipcRenderer.invoke('auth:register', remoteUrl, username, email, password),
+    login: (remoteUrl: string, email: string, password: string) =>
+      ipcRenderer.invoke('auth:login', remoteUrl, email, password),
+    validate: (remoteUrl: string, token: string) =>
+      ipcRenderer.invoke('auth:validate', remoteUrl, token),
+    getToken: () => ipcRenderer.invoke('auth:getToken'),
+    logout: () => ipcRenderer.invoke('auth:logout'),
+  },
+  remoteUrl: {
+    get: () => ipcRenderer.invoke('remoteUrl:get'),
+    set: (url: string) => ipcRenderer.invoke('remoteUrl:set', url),
+  },
+  app: {
+    quit: () => ipcRenderer.invoke('app:quit'),
+  },
+  kb: {
+    getPreloadPath: () => ipcRenderer.invoke('kb:getPreloadPath'),
+  },
   platform: process.platform,
 })

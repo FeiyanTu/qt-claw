@@ -28,7 +28,7 @@ export default function AppLifecycleOverlay() {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="w-[420px] bg-[#1a1a1a] border border-border rounded-2xl shadow-2xl overflow-hidden">
+      <div className="w-[420px] bg-[#ffffff] border border-border rounded-2xl shadow-2xl overflow-hidden">
         {/* 头部 */}
         <div className="flex items-center gap-3 px-5 pt-5 pb-3">
           <Loader2 className={`w-5 h-5 animate-spin ${isStopping ? 'text-red-400' : 'text-primary'}`} />

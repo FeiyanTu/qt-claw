@@ -52,6 +52,10 @@ export default function SettingsPage({ active = true }: { active?: boolean }) {
   const iconInputRef = useRef<HTMLInputElement>(null)
   const { refresh: refreshAppearance } = useAppearance()
 
+  // 远程地址
+  const [remoteUrl, setRemoteUrlState] = useState('')
+  const [remoteUrlSaving, setRemoteUrlSaving] = useState(false)
+
   const loadEnv = useCallback(async () => {
     if (!window.electronAPI) return
     setEnvLoading(true)
@@ -91,6 +95,15 @@ export default function SettingsPage({ active = true }: { active?: boolean }) {
   useEffect(() => {
     if (active) loadAppearance()
   }, [active, loadAppearance])
+
+  // 加载远程地址
+  useEffect(() => {
+    if (active && window.electronAPI?.remoteUrl) {
+      window.electronAPI.remoteUrl.get().then(res => {
+        if (res.url) setRemoteUrlState(res.url)
+      })
+    }
+  }, [active])
 
   const handleAppNameSave = useCallback(async () => {
     if (!window.electronAPI?.appearance?.setAppName) return
@@ -145,6 +158,17 @@ export default function SettingsPage({ active = true }: { active?: boolean }) {
     }
     setAppearanceSaving(false)
   }, [refreshAppearance])
+
+  const handleRemoteUrlSave = useCallback(async () => {
+    if (!window.electronAPI?.remoteUrl?.set) return
+    setRemoteUrlSaving(true)
+    try {
+      await window.electronAPI.remoteUrl.set(remoteUrl.trim())
+    } catch (err) {
+      console.error('保存远程地址失败:', err)
+    }
+    setRemoteUrlSaving(false)
+  }, [remoteUrl])
 
   const handleRefreshAll = useCallback(async () => {
     await loadEnv()
@@ -431,6 +455,33 @@ export default function SettingsPage({ active = true }: { active?: boolean }) {
                   {appearanceSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : '保存'}
                 </Button>
               </div>
+            </div>
+          </section>
+        )}
+
+        {/* 远程地址 */}
+        {window.electronAPI?.remoteUrl && (
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Palette className="w-4 h-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold text-foreground">远程地址</h2>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={remoteUrl}
+                onChange={e => setRemoteUrlState(e.target.value)}
+                placeholder="http://your-server:8080"
+                className="h-8 text-sm w-80"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                disabled={remoteUrlSaving}
+                onClick={handleRemoteUrlSave}
+              >
+                {remoteUrlSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : '保存'}
+              </Button>
             </div>
           </section>
         )}

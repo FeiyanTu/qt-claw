@@ -423,7 +423,7 @@ export default function ModelsPage({ active = true, onSaved }: { active?: boolea
               return (
                 <div key={provider.id} className="border border-border rounded-lg overflow-hidden bg-card/50">
                   <div
-                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-black/5 transition-colors"
                     onClick={() => setExpandedProvider(isExpanded ? null : provider.id)}
                   >
                     {isExpanded ? (

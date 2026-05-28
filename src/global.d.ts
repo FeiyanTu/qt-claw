@@ -210,9 +210,36 @@ interface ElectronAPI {
   lifecycle: {
     onStep: (callback: (data: { phase: 'starting' | 'stopping'; step: string }) => void) => () => void
   }
+  auth: {
+    register: (remoteUrl: string, username: string, email: string, password: string) => Promise<{ success: boolean; message?: string; error?: string }>
+    login: (remoteUrl: string, email: string, password: string) => Promise<{ success: boolean; token?: string; refresh_token?: string; message?: string; error?: string }>
+    validate: (remoteUrl: string, token: string) => Promise<{ success: boolean; error?: string }>
+    getToken: () => Promise<{ success: boolean; token?: string; email?: string }>
+    logout: () => Promise<{ success: boolean }>
+  }
+  remoteUrl: {
+    get: () => Promise<{ success: boolean; url?: string }>
+    set: (url: string) => Promise<{ success: boolean; error?: string }>
+  }
+  app: {
+    quit: () => Promise<{ success: boolean }>
+  }
   platform: string
 }
 
 interface Window {
   electronAPI: ElectronAPI
+}
+
+declare namespace JSX {
+  interface IntrinsicElements {
+    webview: React.DetailedHTMLProps<
+      React.HTMLAttributes<HTMLElement> & {
+        src?: string
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ref?: React.Ref<any>
+      },
+      HTMLElement
+    >
+  }
 }

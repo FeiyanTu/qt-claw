@@ -1,0 +1,9 @@
+# pnpm-workspace.yaml
+packages:
+  - '.'
+
+# pnpm 11 配置
+onlyBuiltDependencies:
+  - electron
+  - esbuild
+  - electron-winstaller

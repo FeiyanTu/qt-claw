@@ -675,7 +675,7 @@ export default function AgentPage({ onNavigateToModels, configVersion }: AgentPa
         {/* 左侧：会话栏 + 对话区 */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* 会话列表：tab 少时按钮紧跟 tab，tab 多时按钮 sticky 吸在右侧，无抖动 */}
-          <div className="flex items-center border-b border-border bg-[#0d0d0d] shrink-0 overflow-x-auto scrollbar-thin min-h-0">
+          <div className="flex items-center border-b border-border bg-[#f3f4f6] shrink-0 overflow-x-auto scrollbar-thin min-h-0">
             <div className="flex items-center gap-1 px-2 py-2 shrink-0">
             <button
                 ref={sessionListButtonRef}
@@ -685,7 +685,7 @@ export default function AgentPage({ onNavigateToModels, configVersion }: AgentPa
                   if (rect) setSessionListAnchor({ left: rect.left, top: rect.bottom + 4 })
                   setSessionListOpen(v => !v)
                 }}
-                className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors shrink-0"
+                className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-black/5 transition-colors shrink-0"
                 title="会话列表"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
@@ -761,7 +761,7 @@ export default function AgentPage({ onNavigateToModels, configVersion }: AgentPa
                         }}
                         className={cn(
                           'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs shrink-0 transition-colors',
-                          isActive ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                          isActive ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-black/5'
                         )}
                       >
                         <span className="max-w-[140px] truncate" title={s.lastMessagePreview || title}>{title}</span>
@@ -772,11 +772,11 @@ export default function AgentPage({ onNavigateToModels, configVersion }: AgentPa
               )}
               </div>
             {/* + 和刷新：tab 少时紧跟 tab，超长时 sticky 吸在右侧 */}
-            <div className="sticky right-0 flex items-center gap-0.5 pl-1 pr-2 py-2 shrink-0 bg-[#0d0d0d]">
+            <div className="sticky right-0 flex items-center gap-0.5 pl-1 pr-2 py-2 shrink-0 bg-[#f3f4f6]">
               <button
                 onClick={handleNewSession}
                 disabled={!activeAgentId}
-                className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors disabled:opacity-40"
+                className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-black/5 transition-colors disabled:opacity-40"
                 title="新会话"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -784,7 +784,7 @@ export default function AgentPage({ onNavigateToModels, configVersion }: AgentPa
               <button
                 onClick={handleRefresh}
                 disabled={loading}
-                className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors disabled:opacity-40"
+                className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-black/5 transition-colors disabled:opacity-40"
                 title="刷新页面"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
