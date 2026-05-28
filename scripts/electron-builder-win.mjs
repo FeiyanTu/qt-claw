@@ -3,7 +3,7 @@
  * 使用带时间戳的输出目录运行 electron-builder --win
  * 输出到 release-yyyyMMddhhmm，每次构建独立目录，避免占用冲突
  */
-import { spawnSync } from 'node:child_process'
+import { spawnSync, execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -37,6 +37,9 @@ try {
     WIN_CSC_KEY_PASSWORD: '',
     ELECTRON_BUILDER_BINARIES_MIRROR: 'https://npmmirror.com/mirrors/electron-builder-binaries/',
   }
+
+  // ====== 第 1 步：正常构建（生成 win-unpacked + NSIS 安装包）=======
+  console.log('[electron-builder-win] 第 1 步：构建应用...')
   const r = spawnSync('electron-builder', ['--win', '--config', configPath], {
     stdio: 'inherit',
     cwd: root,
@@ -45,6 +48,41 @@ try {
   })
   if (r.status !== 0) process.exit(r.status ?? 1)
   console.log('[electron-builder-win] 输出目录:', outputDir)
+
+  // ====== 第 2 步：给 win-unpacked 中 QT-Claw.exe 注入图标 =======
+  // 注意：必须用 path.resolve() 生成 Windows 反斜杠路径，rcedit 不认 Unix 正斜杠路径
+  const exePath = path.resolve(root, outputDir, 'win-unpacked', 'QT-Claw.exe')
+  const iconPath = path.resolve(root, 'build', 'icon.ico')
+  const rceditBin = path.resolve(root, 'build', 'rcedit-x64.exe')
+  if (fs.existsSync(rceditBin) && fs.existsSync(exePath) && fs.existsSync(iconPath)) {
+    try {
+      execFileSync(rceditBin, [exePath, '--set-icon', iconPath], { stdio: 'inherit' })
+      console.log('[electron-builder-win] win-unpacked exe 图标注入成功')
+    } catch (e) {
+      console.warn('[electron-builder-win] win-unpacked exe 图标注入失败:', e.message)
+    }
+  }
+
+  // ====== 第 3 步：从已注入图标的 win-unpacked 重新打包 NSIS 安装包 =======
+  // electron-builder 的 --prepackaged 标志支持从已有目录构建安装包
+  const unpackedDir = path.resolve(root, outputDir, 'win-unpacked')
+  console.log('[electron-builder-win] 第 3 步：重新打包安装包（从已注入图标的 win-unpacked）...')
+  const r2 = spawnSync('electron-builder', [
+    '--win', 'nsis:x64',
+    '--prepackaged', unpackedDir,
+    '--config', configPath,
+  ], {
+    stdio: 'inherit',
+    cwd: root,
+    shell: process.platform === 'win32',
+    env,
+  })
+  if (r2.status !== 0) {
+    console.warn('[electron-builder-win] 安装包重新打包失败:', r2.status)
+    // 不退出，至少 win-unpacked 是可用的
+  } else {
+    console.log('[electron-builder-win] 安装包重新打包成功')
+  }
 } finally {
   try { fs.unlinkSync(configPath) } catch { /* 忽略 */ }
 }

@@ -537,8 +537,10 @@ function parseOpenClawTranscriptToMessages(filePath: string): Array<{ role: 'use
   let lastTimestamp = Date.now()
 
   const flushAssistant = (content: string, ts: number) => {
-    if (content.trim()) {
-      result.push({ role: 'assistant', content: content.trim(), timestamp: ts })
+    // 过滤掉 HEARTBEAT_OK 心跳确认消息（对用户不可见）
+    const trimmed = content.trim()
+    if (trimmed && !/^HEARTBEAT_OK[\s\p{P}]*$/iu.test(trimmed)) {
+      result.push({ role: 'assistant', content: trimmed, timestamp: ts })
     }
     assistantBuffer = null
   }
@@ -685,7 +687,10 @@ function parseOpenClawTranscriptToMessages(filePath: string): Array<{ role: 'use
           assistantBuffer = parts.join('\n')
         } else {
           const joined = parts.join('\n')
-          if (joined) result.push({ role: 'assistant', content: joined, timestamp: ts })
+          // 过滤掉 HEARTBEAT_OK 心跳确认消息（对用户不可见）
+          if (joined && !/^HEARTBEAT_OK[\s\p{P}]*$/iu.test(joined)) {
+            result.push({ role: 'assistant', content: joined, timestamp: ts })
+          }
         }
       } else if (role === 'tool' || role === 'toolresult') {
         const toolResults = extractToolResult(msg.content)
@@ -1512,37 +1517,58 @@ function loadAllSkills(): SkillMeta[] {
 
 // ---- Window ----
 
-/** 将原始图片创建为包含多尺寸的 NativeImage（Windows 任务栏需要） */
-function createMultiSizeIcon(imagePath: string): Electron.NativeImage | undefined {
-  const original = nativeImage.createFromPath(imagePath)
-  if (original.isEmpty()) return undefined
-  if (process.platform !== 'win32') return original
-  // Windows 任务栏需要多尺寸图标：16(小图标)、32(标准)、48(任务栏)、256(大图标视图)
-  const sizes = [16, 32, 48, 256]
-  const resized = sizes.map(s => original.resize({ width: s, height: s }))
-  // 用最大尺寸作为基础，再逐个添加不同分辨率的表示
-  const multi = nativeImage.createEmpty()
-  for (const img of resized) {
-    const size = img.getSize()
-    multi.addRepresentation({ width: size.width, height: size.height, buffer: img.toPNG(), scaleFactor: 1.0 })
-  }
-  return multi.isEmpty() ? original : multi
-}
-
 /** 获取应用外观：标题与图标（用于 createWindow 及动态更新） */
 function getAppearance(): { title: string; icon: Electron.NativeImage | undefined } {
   const cfg = YunyaClawConfigService.read()
   const appName = typeof cfg.appName === 'string' && cfg.appName.trim() ? cfg.appName.trim() : 'Yunya Claw'
+
+  // 1. 读取自定义图标路径（~/.openclaw/.yunya-claw-icon.png）
   const customIconPath = getAppearanceIconPath()
-  let icon: Electron.NativeImage | undefined
+  console.log('[getAppearance] customIconPath:', customIconPath, 'exists:', fs.existsSync(customIconPath))
   if (fs.existsSync(customIconPath)) {
-    icon = createMultiSizeIcon(customIconPath)
+    try {
+      const icon = nativeImage.createFromPath(customIconPath)
+      console.log('[getAppearance] custom icon loaded, isEmpty:', icon.isEmpty())
+      if (!icon.isEmpty()) return { title: appName, icon }
+    } catch {}
   }
-  if (!icon) {
-    const defaultPath = path.join(app.getAppPath(), 'public', 'icon.png')
-    icon = fs.existsSync(defaultPath) ? createMultiSizeIcon(defaultPath) : undefined
+
+  // 2. 打包模式：exe 已用 rcedit 嵌入图标，不需要额外加载
+  if (!app.isPackaged) {
+    const pngPaths = [
+      path.join(app.getAppPath(), 'public', 'icon.ico'),
+      path.join(app.getAppPath(), 'public', 'icon.png'),
+      path.join(app.getAppPath(), 'build', 'icon.ico'),
+      // __dirname / process.cwd 回退
+      path.join(__dirname, '..', 'public', 'icon.ico'),
+      path.join(process.cwd(), 'public', 'icon.ico'),
+      path.join(__dirname, '..', '..', 'public', 'icon.ico'),
+      path.join(__dirname, '..', 'build', 'icon.ico'),
+      path.join(__dirname, '..', 'public', 'icon.png'),
+      path.join(process.cwd(), 'public', 'icon.png'),
+      path.join(__dirname, '..', '..', 'public', 'icon.png'),
+      process.env.VITE_PUBLIC ? path.join(process.env.VITE_PUBLIC, 'icon.ico') : '',
+      process.env.VITE_PUBLIC ? path.join(process.env.VITE_PUBLIC, 'icon.png') : '',
+    ].filter(Boolean)
+    for (const p of pngPaths) {
+      try {
+        if (fs.existsSync(p)) {
+          let icon = nativeImage.createFromPath(p)
+          console.log('[getAppearance] loaded from', p, 'isEmpty:', icon.isEmpty())
+          if (!icon.isEmpty()) return { title: appName, icon }
+          const buf = fs.readFileSync(p)
+          icon = nativeImage.createFromBuffer(buf)
+          console.log('[getAppearance] createFromBuffer for', p, 'isEmpty:', icon.isEmpty())
+          if (!icon.isEmpty()) return { title: appName, icon }
+        }
+      } catch (e) {
+        console.error('[getAppearance] error loading', p, e)
+      }
+    }
   }
-  return { title: appName, icon }
+
+  // 3. 兜底：没有图标
+  return { title: appName, icon: undefined }
 }
 
 /** 将当前外观应用到主窗口（标题、图标）
@@ -1551,27 +1577,75 @@ function getAppearance(): { title: string; icon: Electron.NativeImage | undefine
 function applyAppearanceToWindow(refreshTaskbar = false): void {
   if (!mainWindow || mainWindow.isDestroyed()) return
   const { title, icon } = getAppearance()
+  console.log('[applyAppearance] title:', title, 'icon:', icon ? (icon.isEmpty() ? 'empty' : 'loaded') : 'undefined')
   mainWindow.setTitle(title)
+  // 打包模式：exe 已用 rcedit 嵌入了图标，任务栏/标题栏直接使用 exe 嵌入图标
+  // 手动 setIcon 会覆盖 exe 嵌入图标，导致任务栏显示错误
   if (icon && !icon.isEmpty()) {
-    mainWindow.setIcon(icon)
-  }
-  // Windows + frame:false: setTitle/setIcon 可能不刷新任务栏，
-  // 通过 setSkipTaskbar 切换强制 Windows 重新注册任务栏条目。
-  // 需要加延时，否则 Windows 来不及处理注销/重注册。
-  if (refreshTaskbar && process.platform === 'win32') {
-    mainWindow.setSkipTaskbar(true)
-    setTimeout(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.setSkipTaskbar(false)
+    if (!app.isPackaged) {
+      mainWindow.setIcon(icon)
+      if (refreshTaskbar && process.platform === 'win32') {
+        try {
+          mainWindow.setSkipTaskbar(true)
+          setTimeout(() => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.setSkipTaskbar(false)
+            }
+          }, 200)
+        } catch { /* 忽略 */ }
       }
-    }, 150)
+    }
   }
 }
 
 function createWindow() {
   Menu.setApplicationMenu(null)
 
-  const { title, icon } = getAppearance()
+  // 直接加载窗口图标（多路径回退，优先 .ico 格式）
+  // 注意：打包后的 exe 已用 rcedit 嵌入图标，不需要再设置窗口图标
+  // 设置窗口图标反而会覆盖 exe 嵌入图标，导致任务栏显示错误
+  let icon: Electron.NativeImage | undefined
+  if (!app.isPackaged) {
+    // Dev 模式：electron.exe 没有我们的图标，必须通过 BrowserWindow 设置
+    const candidatePaths = [
+      path.join(app.getAppPath(), 'public', 'icon.ico'),
+      path.join(app.getAppPath(), 'public', 'icon.png'),
+      path.join(app.getAppPath(), 'build', 'icon.ico'),
+      path.join(__dirname, '..', 'public', 'icon.ico'),
+      path.join(__dirname, '..', 'public', 'icon.png'),
+      path.join(__dirname, '..', '..', 'public', 'icon.ico'),
+      path.join(__dirname, '..', '..', 'public', 'icon.png'),
+      path.join(__dirname, '..', 'build', 'icon.ico'),
+      path.join(process.cwd(), 'public', 'icon.ico'),
+      path.join(process.cwd(), 'public', 'icon.png'),
+      process.env.VITE_PUBLIC ? path.join(process.env.VITE_PUBLIC, 'icon.png') : '',
+    ].filter(Boolean)
+    console.log('[Icon] iconPaths:', candidatePaths)
+    for (const p of candidatePaths) {
+      try {
+        if (fs.existsSync(p)) {
+          const img = nativeImage.createFromPath(p)
+          console.log('[Icon] loaded from', p, 'isEmpty:', img.isEmpty())
+          if (!img.isEmpty()) {
+            icon = img
+            break
+          }
+          const buf = fs.readFileSync(p)
+          const img2 = nativeImage.createFromBuffer(buf)
+          console.log('[Icon] createFromBuffer for', p, 'isEmpty:', img2.isEmpty())
+          if (!img2.isEmpty()) {
+            icon = img2
+            break
+          }
+        }
+      } catch (e) {
+        console.error('[Icon] error loading', p, e)
+      }
+    }
+    console.log('[Icon] final icon:', icon ? 'loaded' : 'undefined')
+  }
+
+  const { title } = getAppearance()
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -1646,12 +1720,17 @@ function createWindow() {
       mainWindow.show()
     }
   }
-  mainWindow.once('ready-to-show', showWindow)
+  mainWindow.once('ready-to-show', () => {
+    // 先显示窗口（创建任务栏入口），再应用图标
+    showWindow()
+    // setSkipTaskbar trick 需要在窗口可见后才生效
+    setTimeout(() => applyAppearanceToWindow(process.platform === 'win32'), 100)
+  })
   mainWindow.webContents.once('did-finish-load', () => {
     showWindow()
     if (DEBUG_MODE) mainWindow?.webContents.openDevTools()
     // 页面加载后重新应用自定义标题和图标，覆盖 document.title 的默认值
-    applyAppearanceToWindow()
+    applyAppearanceToWindow(process.platform === 'win32')
     if (gatewayStarting && !gatewayProcess) {
       mainWindow?.webContents.send('gateway:status', { running: false, starting: true, initializing: false })
     }
@@ -1816,8 +1895,16 @@ function startGateway(): Promise<void> {
         mainWindow?.webContents.send('gateway:log', msg)
 
         if (!portDetected) {
+          // 新版 gateway 输出 [gateway] ready，不再输出 listening on ws://...
+          const readyMatch = raw.match(/\[gateway\]\s+ready/)
           const portMatch = raw.match(/listening on ws:\/\/127\.0\.0\.1:(\d+)/)
-          if (portMatch) {
+          if (readyMatch) {
+            portDetected = true
+            gatewayStarting = false
+            console.log(`[Gateway] 检测到启动完成 (ready)`)
+            mainWindow?.webContents.send('gateway:status', { running: true, port: gatewayPort })
+            if (!resolved) { resolved = true; resolve() }
+          } else if (portMatch) {
             gatewayPort = parseInt(portMatch[1], 10)
             portDetected = true
             gatewayStarting = false
@@ -1910,8 +1997,8 @@ function gatewayRpc(method: string, params: Record<string, unknown> = {}): Promi
         id: 'connect',
         method: 'connect',
         params: {
-          minProtocol: 3,
-          maxProtocol: 3,
+          minProtocol: 4,
+          maxProtocol: 4,
           client: {
             id: 'gateway-client',
             displayName: 'yunya-claw',

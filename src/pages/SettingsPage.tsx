@@ -16,6 +16,7 @@ import {
   Palette,
   Upload,
   RotateCcw,
+  Globe,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppearance } from '@/contexts/AppearanceContext'
@@ -463,7 +464,7 @@ export default function SettingsPage({ active = true }: { active?: boolean }) {
         {window.electronAPI?.remoteUrl && (
           <section className="space-y-3">
             <div className="flex items-center gap-2">
-              <Palette className="w-4 h-4 text-muted-foreground" />
+              <Globe className="w-4 h-4 text-muted-foreground" />
               <h2 className="text-sm font-semibold text-foreground">远程地址</h2>
             </div>
             <div className="flex gap-2">

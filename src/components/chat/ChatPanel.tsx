@@ -211,7 +211,7 @@ export default function ChatPanel({ sessionKey, agentId, agentModel, onAgentMode
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
 
-    const assistantMsg: ChatMessage = { role: 'assistant', content: '', timestamp: Date.now() }
+    const assistantMsg: ChatMessage = { role: 'assistant', content: '正在思考...', timestamp: Date.now() }
     setMessages([...newMessages, assistantMsg])
     setStreaming(true)
 
@@ -233,7 +233,7 @@ export default function ChatPanel({ sessionKey, agentId, agentModel, onAgentMode
       const response = await fetch(gatewayUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ model, messages: apiMessages, stream: true }),
+        body: JSON.stringify({ model: `openclaw/${agentId}`, messages: apiMessages, stream: true }),
         signal: controller.signal,
       })
 

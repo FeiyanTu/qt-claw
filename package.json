@@ -11,7 +11,8 @@
     "build:win": "node scripts/kill-release-lock.mjs && node scripts/ensure-node-win.mjs && node scripts/build-openclaw-release.mjs && vite build && node scripts/electron-builder-win.mjs",
     "build:win-mini": "node scripts/kill-release-lock.mjs && node scripts/ensure-node-win.mjs && node scripts/build-openclaw-release-mini.mjs && vite build && node scripts/electron-builder-win.mjs",
     "preview": "vite preview",
-    "prebuild": "node scripts/bundle-plugins.mjs"
+    "prebuild": "node scripts/bundle-plugins.mjs",
+    "electron:generate-icons": "electron-icon-builder --input=./resources/icon.png --output=build --flatten"
   },
   "author": "",
   "license": "MIT",
@@ -54,7 +55,7 @@
           ]
         }
       ],
-      "icon": "public/icon.png",
+      "icon": "build/icon.ico",
       "signAndEditExecutable": false
     },
     "forceCodeSigning": false,
@@ -68,7 +69,10 @@
       "include": "build/installer.nsh",
       "warningsAsErrors": false,
       "guid": "ai.yunya.claw",
-      "shortcutName": "QT-Claw"
+      "shortcutName": "QT-Claw",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "createDesktopShortcut": true
     },
     "extraFiles": [
       {
@@ -133,6 +137,7 @@
     "@vitejs/plugin-react": "^5.1.4",
     "electron": "^40.7.0",
     "electron-builder": "^26.8.1",
+    "electron-icon-builder": "^2.0.1",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
